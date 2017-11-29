@@ -193,7 +193,7 @@ func (ec *EquivalenceCache) InvalidateCachedPredicateItemForPodAdd(pod *v1.Pod, 
 
 // getHashEquivalencePod returns the hash of equivalence pod.
 // 1. equivalenceHash
-// 2. if equivalence pod is found
+// 2. if equivalence hash is valid
 func (ec *EquivalenceCache) getHashEquivalencePod(pod *v1.Pod) (uint64, bool) {
 	equivalencePod := ec.getEquivalencePod(pod)
 	if equivalencePod != nil {

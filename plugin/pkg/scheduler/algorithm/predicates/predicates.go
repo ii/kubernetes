@@ -1492,3 +1492,14 @@ func (c *VolumeBindingChecker) predicate(pod *v1.Pod, meta algorithm.PredicateMe
 	glog.V(5).Info("All PVCs found matches for pod %v/%v, node %q", pod.Namespace, pod.Name, node.Name)
 	return true, nil, nil
 }
+
+type FakePersistentVolumeClaimInfo []v1.PersistentVolumeClaim
+
+func (pvcs FakePersistentVolumeClaimInfo) GetPersistentVolumeClaimInfo(namespace string, pvcID string) (*v1.PersistentVolumeClaim, error) {
+	for _, pvc := range pvcs {
+		if pvc.Name == pvcID && pvc.Namespace == namespace {
+			return &pvc, nil
+		}
+	}
+	return nil, fmt.Errorf("Unable to find persistent volume claim: %s/%s", namespace, pvcID)
+}
