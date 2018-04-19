@@ -45,6 +45,7 @@ func TestPrintConfiguration(t *testing.T) {
 	auditPolicy:
 	  logDir: ""
 	  path: ""
+	  webhookConfigPath: ""
 	certificatesDir: ""
 	cloudProvider: ""
 	etcd:
@@ -83,6 +84,7 @@ func TestPrintConfiguration(t *testing.T) {
 	auditPolicy:
 	  logDir: ""
 	  path: ""
+	  webhookConfigPath: ""
 	certificatesDir: ""
 	cloudProvider: ""
 	etcd:
@@ -126,6 +128,7 @@ func TestPrintConfiguration(t *testing.T) {
 	auditPolicy:
 	  logDir: ""
 	  path: ""
+	  webhookConfigPath: ""
 	certificatesDir: ""
 	cloudProvider: ""
 	etcd:
