@@ -82,7 +82,7 @@ func (gce *GCECloud) ToInstanceReferences(zone string, instanceNames []string) (
 }
 
 // NodeAddresses is an implementation of Instances.NodeAddresses.
-func (gce *GCECloud) NodeAddresses(_ context.Context, _ types.NodeName) ([]v1.NodeAddress, error) {
+func (gce *GCECloud) NodeAddresses(_ context.Context, name types.NodeName) ([]v1.NodeAddress, error) {
 	internalIP, err := metadata.Get("instance/network-interfaces/0/ip")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get internal IP: %v", err)
@@ -92,6 +92,7 @@ func (gce *GCECloud) NodeAddresses(_ context.Context, _ types.NodeName) ([]v1.No
 		return nil, fmt.Errorf("couldn't get external IP: %v", err)
 	}
 	return []v1.NodeAddress{
+		{Type: v1.NodeHostName, Address: string(name)},
 		{Type: v1.NodeInternalIP, Address: internalIP},
 		{Type: v1.NodeExternalIP, Address: externalIP},
 	}, nil
