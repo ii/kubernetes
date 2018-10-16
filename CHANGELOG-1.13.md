@@ -69,6 +69,8 @@ filename | sha512 hash
 * [action required] kubeadm: The `v1alpha2` config API has been removed. ([#69055](https://github.com/kubernetes/kubernetes/pull/69055), [@fabriziopandini](https://github.com/fabriziopandini))
     * Please convert your `v1alpha2` configuration files to `v1alpha3` using the
     * `kubeadm config migrate` command of kubeadm v1.12.x
+* In anticipation of CSI 1.0 in the next release, Kubernetes CSI in v1.13 calls `NodeGetInfo(...)` instead of `NodeGetId(...)` RPC. Ensure your CSI Driver implements `NodeGetInfo(...)` before upgrading to 1.13.
+* Kubernetes v1.13 also enables Kubelet device plugin registration by default. Before upgrading to v1.13, ensure the `driver-registrar` CSI sidecar container for your CSI driver is configured to handle plugin registration (set the `--kubelet-registration-path` parameter on `driver-registrar` to expose a new unix domain socket to handle Kubelet Plugin Registration).
 
 ### Other notable changes
 
