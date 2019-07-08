@@ -771,8 +771,13 @@ var _ = framework.KubeDescribe("Pods", func() {
 		}
 	})
 
+	/*
+		Release : v1.15
+		Testname: Ensure readiness gates are respected
+		Description: Create a pod with multiple readiness gates and ensure the pod is unReady until all gates are ready
+	*/
 	// TODO(freehan): label the test to be [NodeConformance] after tests are proven to be stable.
-	ginkgo.It("should support pod readiness gates [NodeFeature:PodReadinessGate]", func() {
+	framework.ConformanceIt("should support pod readiness gates [NodeFeature:PodReadinessGate]", func() {
 		podName := "pod-ready"
 		readinessGate1 := "k8s.io/test-condition1"
 		readinessGate2 := "k8s.io/test-condition2"
