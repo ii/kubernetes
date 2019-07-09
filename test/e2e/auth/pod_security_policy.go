@@ -83,7 +83,12 @@ var _ = SIGDescribe("PodSecurityPolicy", func() {
 		expectForbidden(err)
 	})
 
-	ginkgo.It("should enforce the restricted policy.PodSecurityPolicy", func() {
+	/*
+				Release : v1.16
+				Testname: Test privileges of restricted pod
+		 		Description: Create a pod and bind restrictive privileges to it, and test those privileges
+	*/
+	framework.ConformanceIt("should enforce the restricted policy.PodSecurityPolicy", func() {
 		ginkgo.By("Creating & Binding a restricted policy for the test service account")
 		_, cleanup := createAndBindPSP(f, restrictedPSP("restrictive"))
 		defer cleanup()
@@ -99,7 +104,12 @@ var _ = SIGDescribe("PodSecurityPolicy", func() {
 		})
 	})
 
-	ginkgo.It("should allow pods under the privileged policy.PodSecurityPolicy", func() {
+	/*
+				Release : v1.16
+				Testname: Test privileges of privileged pod
+		 		Description: Create a privileged pod, test the given privileges
+	*/
+	framework.ConformanceIt("should allow pods under the privileged policy.PodSecurityPolicy", func() {
 		ginkgo.By("Creating & Binding a privileged policy for the test service account")
 		// Ensure that the permissive policy is used even in the presence of the restricted policy.
 		_, cleanup := createAndBindPSP(f, restrictedPSP("restrictive"))
