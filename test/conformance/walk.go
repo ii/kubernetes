@@ -443,7 +443,7 @@ func main() {
 						csvRelease := fmt.Sprintf("%s", cd.Release)
 						csvDescription := fmt.Sprintf("%s", cd.Description)
 						csvDescription = fmt.Sprintf(strings.ReplaceAll(csvDescription, "\n", "\\n"))
-						csvDescription = fmt.Sprintf(strings.ReplaceAll(csvDescription, ",", "\\,"))
+						csvDescription = fmt.Sprintf(strings.ReplaceAll(csvDescription, ",", ";"))
 						records := [][]string{{csvTestName, csvTestURL, csvRelease, csvDescription}}
 						writer := csv.NewWriter(os.Stdout)
 						defer writer.Flush()
