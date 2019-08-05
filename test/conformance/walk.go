@@ -400,77 +400,65 @@ func main() {
 			Version: *version,
 		}
 		templ.Execute(os.Stdout, data)
-	}
 
-	totalConfTests = 0
-	totalLegacyTests = 0
-	missingComments = 0
-	for _, arg := range flag.Args() {
-		filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if strings.HasSuffix(path, ".go") {
-				tests := scanfile(path, nil)
-				for _, cd := range tests {
-					fmt.Printf("## [%s](%s)\n\n", cd.TestName, cd.URL)
-					fmt.Printf("### Release %s\n", cd.Release)
-					fmt.Printf("%s\n\n", cd.Description)
-					if len(cd.Description) < 10 {
-						missingComments++
+		totalConfTests = 0
+		totalLegacyTests = 0
+		missingComments = 0
+		for _, arg := range flag.Args() {
+			filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if strings.HasSuffix(path, ".go") {
+					tests := scanfile(path, nil)
+					for _, cd := range tests {
+						fmt.Printf("## [%s](%s)\n\n", cd.TestName, cd.URL)
+						fmt.Printf("### Release %s\n", cd.Release)
+						fmt.Printf("%s\n\n", cd.Description)
+						if len(cd.Description) < 10 {
+							missingComments++
+						}
 					}
 				}
-			}
-			return nil
-		})
-	}
-	if *confDoc {
+				return nil
+			})
+		}
 		fmt.Println("\n## **Summary**")
 		fmt.Printf("\nTotal Conformance Tests: %d, total legacy tests that need conversion: %d, while total tests that need comment sections: %d\n\n", totalConfTests, totalLegacyTests, missingComments)
 	}
 	if *csvDoc {
-		// Note: this assumes that you're running from the root of the kube src repo
-		templ, err := template.ParseFiles("test/conformance/cf_header.md")
-		if err != nil {
-			fmt.Printf("Error reading the Header file information: %s\n\n", err)
-		}
-		data := struct {
-			Version string
-		}{
-			Version: *version,
-		}
-		templ.Execute(os.Stdout, data)
-	}
-
-	totalConfTests = 0
-	totalLegacyTests = 0
-	missingComments = 0
-	for _, arg := range flag.Args() {
-		filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if strings.HasSuffix(path, ".go") {
-				tests := scanfile(path, nil)
-				for _, cd := range tests {
-					csvTestName := fmt.Sprintf("%s", cd.TestName)
-					csvTestURL := fmt.Sprintf("%s", cd.URL)
-					csvRelease := fmt.Sprintf("%s", cd.Release)
-					csvDescription := fmt.Sprintf("%s", cd.Description)
-					records := [][]string{{csvTestName, csvTestURL, csvRelease, csvDescription}}
-					writer := csv.NewWriter(os.Stdout)
-					defer writer.Flush()
-					for _, record := range records {
-						if err := writer.Write(record); err != nil {
-							log.Fatalln("error writing record to csv:", err)
+		totalConfTests = 0
+		totalLegacyTests = 0
+		missingComments = 0
+		for _, arg := range flag.Args() {
+			filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if strings.HasSuffix(path, ".go") {
+					tests := scanfile(path, nil)
+					for _, cd := range tests {
+						csvTestName := fmt.Sprintf("%s", cd.TestName)
+						csvTestURL := fmt.Sprintf("%s", cd.URL)
+						csvRelease := fmt.Sprintf("%s", cd.Release)
+						csvDescription := fmt.Sprintf("%s", cd.Description)
+						csvDescription = fmt.Sprintf(strings.ReplaceAll(csvDescription, "\n", "\\n"))
+						csvDescription = fmt.Sprintf(strings.ReplaceAll(csvDescription, ",", "\\,"))
+						records := [][]string{{csvTestName, csvTestURL, csvRelease, csvDescription}}
+						writer := csv.NewWriter(os.Stdout)
+						defer writer.Flush()
+						for _, record := range records {
+							if err := writer.Write(record); err != nil {
+								log.Fatalln("error writing record to csv:", err)
+							}
+						}
+						if len(cd.Description) < 10 {
+							missingComments++
 						}
 					}
-					if len(cd.Description) < 10 {
-						missingComments++
-					}
 				}
-			}
-			return nil
-		})
+				return nil
+			})
+		}
 	}
 }
