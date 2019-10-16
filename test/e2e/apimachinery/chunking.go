@@ -29,7 +29,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -217,5 +219,57 @@ var _ = SIGDescribe("Servers with support for API chunking", func() {
 			opts.Continue = list.Continue
 		}
 		gomega.Expect(found).To(gomega.BeNumerically("==", numberOfTotalResources))
+	})
+
+	ginkgo.It("should create resources using DynamicClient", func() {
+		// initialise clients
+		// clientset := f.ClientSet
+		dynamicclient := f.DynamicClient
+		maxObjectNumber := 5
+		ns := f.Namespace.Name
+
+		discoveryclient, err := factory.ToDiscoveryClient()
+		if err != nil {
+			return err
+		}
+
+		// get all resource types
+		lists, err := discoveryclient.ServerPreferredResources()
+
+		configMapResource := schema.GroupVersionResource{Group: "ConfigMap", Version: "v1", Resource: "configmaps"}
+
+		// set a watch for resource create and updating
+
+		// create 10 resources of each type
+		ginkgo.By("Creating many resources")
+		for i := 0; i < maxObjectNumber; i++ {
+			result, err := dynamicclient.Resource(configMapResource).Namespace(ns).Create(&unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind": "ConfigMap",
+					"metadata": map[string]interface{}{
+						"name": fmt.Sprintf("configmap-%04d", i),
+					},
+				},
+			}, metav1.CreateOptions{})
+
+			framework.ExpectNoError(err, fmt.Sprintf("Failed to created resource 'configmap-%v'", i))
+			framework.Logf("Created resource '%v'", result.GetName())
+		}
+
+		ginkgo.By("Listing created resources")
+		list, err := dynamicclient.Resource(configMapResource).Namespace(ns).List(metav1.ListOptions{})
+		framework.ExpectNoError(err, "Should list resources")
+		framework.Logf("%v", list)
+
+		ginkgo.By("Remove created resources")
+		deletePolicy := metav1.DeletePropagationForeground
+		deleteOptions := &metav1.DeleteOptions{
+			PropagationPolicy: &deletePolicy,
+		}
+		for i := 0; i < maxObjectNumber; i++ {
+			err := dynamicclient.Resource(configMapResource).Namespace(ns).Delete(fmt.Sprintf("configmap-%v", i), deleteOptions)
+			framework.ExpectNoError(err, fmt.Sprintf("Failed to delete resource 'configmap-%v'", i))
+		}
 	})
 })
