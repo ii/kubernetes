@@ -76,7 +76,7 @@ var _ = SIGDescribe("Deployment", func() {
 	var dc dynamic.Interface
 
 	ginkgo.AfterEach(func() {
-		failureTrap(c, ns)
+		framework.Logf("=== Temp: Remove extra post test log noise === ") // failureTrap(c, ns)
 	})
 
 	f := framework.NewDefaultFramework("deployment")
@@ -144,13 +144,16 @@ var _ = SIGDescribe("Deployment", func() {
 	// See https://github.com/kubernetes/kubernetes/issues/29229
 
 	ginkgo.It("should run the lifecycle of a Deployment", func() {
+		r, _ := framework.RunKubectl(ns, "get", "deployments", "-A")
+		framework.Logf("Details\n %v\n", r)
+
 		deploymentResource := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 		testNamespaceName := f.Namespace.Name
 		testDeploymentName := "test-deployment"
 		testDeploymentInitialImage := imageutils.GetE2EImage(imageutils.Agnhost)
 		testDeploymentPatchImage := imageutils.GetE2EImage(imageutils.Pause)
 		testDeploymentUpdateImage := imageutils.GetE2EImage(imageutils.Httpd)
-		testDeploymentDefaultReplicas := int32(2)
+		testDeploymentDefaultReplicas := int32(3)
 		testDeploymentMinimumReplicas := int32(1)
 		testDeploymentNoReplicas := int32(0)
 		testDeploymentLabels := map[string]string{"test-deployment-static": "true"}
@@ -192,6 +195,9 @@ var _ = SIGDescribe("Deployment", func() {
 		_, err = f.ClientSet.AppsV1().Deployments(testNamespaceName).Create(context.TODO(), &testDeployment, metav1.CreateOptions{})
 		framework.ExpectNoError(err, "failed to create Deployment %v in namespace %v", testDeploymentName, testNamespaceName)
 
+		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
+		framework.Logf("List Deployment Details\n %v\n", r)
+
 		ginkgo.By("waiting for Deployment to be created")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -210,6 +216,9 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see %v event", watch.Added)
 
+		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
+		framework.Logf("List Deployment Details\n %v\n", r)
+
 		ginkgo.By("waiting for all Replicas to be Ready")
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -226,6 +235,11 @@ var _ = SIGDescribe("Deployment", func() {
 			return false, nil
 		})
 		framework.ExpectNoError(err, "failed to see replicas of %v in namespace %v scale to requested amount of %v", testDeployment.Name, testNamespaceName, testDeploymentDefaultReplicas)
+
+		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
+		framework.Logf("List Deployment Details\n %v\n", r)
+		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
+		framework.Logf("List all Pods\n %v\n", r)
 
 		ginkgo.By("patching the Deployment")
 		deploymentPatch, err := json.Marshal(map[string]interface{}{
@@ -285,6 +299,9 @@ var _ = SIGDescribe("Deployment", func() {
 			return false, nil
 		})
 		framework.ExpectNoError(err, "failed to see replicas of %v in namespace %v scale to requested amount of %v", testDeployment.Name, testNamespaceName, testDeploymentMinimumReplicas)
+
+		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
+		framework.Logf("List Deployment Details\n %v\n", r)
 
 		ginkgo.By("listing Deployments")
 		deploymentsList, err = f.ClientSet.AppsV1().Deployments("").List(context.TODO(), metav1.ListOptions{LabelSelector: testDeploymentLabelsFlat})
@@ -387,6 +404,9 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see %v event", watch.Modified)
 
+		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
+		framework.Logf("List Deployment Details\n %v\n", r)
+
 		ginkgo.By("fetching the DeploymentStatus")
 		deploymentGetUnstructured, err = dc.Resource(deploymentResource).Namespace(testNamespaceName).Get(context.TODO(), testDeploymentName, metav1.GetOptions{}, "status")
 		framework.ExpectNoError(err, "failed to fetch the DeploymentStatus")
@@ -412,12 +432,16 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see replicas of %v in namespace %v scale to requested amount of %v", testDeployment.Name, testNamespaceName, testDeploymentDefaultReplicas)
 
+		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
+		framework.Logf("List Deployment Details\n %v\n", r)
+
 		ginkgo.By("deleting the Deployment")
 		err = f.ClientSet.AppsV1().Deployments(testNamespaceName).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: testDeploymentLabelsFlat})
 		framework.ExpectNoError(err, "failed to delete Deployment via collection")
 
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		err = f.ClientSet.AppsV1().Deployments(testNamespaceName).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: testDeploymentLabelsFlat})
 		_, err = watchtools.Until(ctx, deploymentsList.ResourceVersion, w, func(event watch.Event) (bool, error) {
 			switch event.Type {
 			case watch.Deleted:
@@ -435,6 +459,27 @@ var _ = SIGDescribe("Deployment", func() {
 			return false, nil
 		})
 		framework.ExpectNoError(err, "failed to see %v event", watch.Deleted)
+
+		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
+		framework.Logf("Details\n %v\n", r)
+		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
+		framework.Logf("List all Pods\n %v\n", r)
+
+		framework.Logf("Waiting 3 seconds before checking pod status...")
+		time.Sleep( 3 * time.Second)
+		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
+		framework.Logf("List all Pods\n %v\n", r)
+
+		framework.Logf("Waiting another 3 seconds before checking pod status...")
+		time.Sleep( 3 * time.Second)
+		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
+		framework.Logf("List all Pods\n %v\n", r)
+
+		framework.Logf("Waiting another 3 seconds before checking pod status...")
+		time.Sleep( 3 * time.Second)
+		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
+		framework.Logf("List all Pods\n %v\n", r)
+
 	})
 })
 
