@@ -76,7 +76,8 @@ var _ = SIGDescribe("Deployment", func() {
 	var dc dynamic.Interface
 
 	ginkgo.AfterEach(func() {
-		framework.Logf("=== Temp: Remove extra post test log noise === ") // failureTrap(c, ns)
+		return // Remove post test noise
+		failureTrap(c, ns)
 	})
 
 	f := framework.NewDefaultFramework("deployment")
@@ -144,8 +145,8 @@ var _ = SIGDescribe("Deployment", func() {
 	// See https://github.com/kubernetes/kubernetes/issues/29229
 
 	ginkgo.It("should run the lifecycle of a Deployment", func() {
-		r, _ := framework.RunKubectl(ns, "get", "deployments", "-A")
-		framework.Logf("Details\n %v\n", r)
+		testStart := time.Now()
+		timeReference := testStart
 
 		deploymentResource := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 		testNamespaceName := f.Namespace.Name
@@ -195,8 +196,8 @@ var _ = SIGDescribe("Deployment", func() {
 		_, err = f.ClientSet.AppsV1().Deployments(testNamespaceName).Create(context.TODO(), &testDeployment, metav1.CreateOptions{})
 		framework.ExpectNoError(err, "failed to create Deployment %v in namespace %v", testDeploymentName, testNamespaceName)
 
-		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
-		framework.Logf("List Deployment Details\n %v\n", r)
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 
 		ginkgo.By("waiting for Deployment to be created")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -216,8 +217,8 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see %v event", watch.Added)
 
-		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
-		framework.Logf("List Deployment Details\n %v\n", r)
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 
 		ginkgo.By("waiting for all Replicas to be Ready")
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
@@ -236,10 +237,8 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see replicas of %v in namespace %v scale to requested amount of %v", testDeployment.Name, testNamespaceName, testDeploymentDefaultReplicas)
 
-		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
-		framework.Logf("List Deployment Details\n %v\n", r)
-		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
-		framework.Logf("List all Pods\n %v\n", r)
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 
 		ginkgo.By("patching the Deployment")
 		deploymentPatch, err := json.Marshal(map[string]interface{}{
@@ -282,6 +281,9 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see %v event", watch.Modified)
 
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
+
 		ginkgo.By("waiting for Replicas to scale")
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -300,8 +302,8 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see replicas of %v in namespace %v scale to requested amount of %v", testDeployment.Name, testNamespaceName, testDeploymentMinimumReplicas)
 
-		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
-		framework.Logf("List Deployment Details\n %v\n", r)
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 
 		ginkgo.By("listing Deployments")
 		deploymentsList, err = f.ClientSet.AppsV1().Deployments("").List(context.TODO(), metav1.ListOptions{LabelSelector: testDeploymentLabelsFlat})
@@ -316,6 +318,9 @@ var _ = SIGDescribe("Deployment", func() {
 			}
 		}
 		framework.ExpectEqual(foundDeployment, true, "unable to find the Deployment in list", deploymentsList)
+
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 
 		ginkgo.By("updating the Deployment")
 		testDeploymentUpdate := testDeployment
@@ -351,6 +356,9 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see %v event", watch.Modified)
 
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
+
 		ginkgo.By("fetching the DeploymentStatus")
 		deploymentGetUnstructured, err := dc.Resource(deploymentResource).Namespace(testNamespaceName).Get(context.TODO(), testDeploymentName, metav1.GetOptions{}, "status")
 		framework.ExpectNoError(err, "failed to fetch the Deployment")
@@ -375,6 +383,9 @@ var _ = SIGDescribe("Deployment", func() {
 			return false, nil
 		})
 		framework.ExpectNoError(err, "failed to see replicas of %v in namespace %v scale to requested amount of %v", testDeployment.Name, testNamespaceName, testDeploymentDefaultReplicas)
+
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 
 		ginkgo.By("patching the DeploymentStatus")
 		deploymentStatusPatch, err := json.Marshal(map[string]interface{}{
@@ -404,8 +415,8 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see %v event", watch.Modified)
 
-		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
-		framework.Logf("List Deployment Details\n %v\n", r)
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 
 		ginkgo.By("fetching the DeploymentStatus")
 		deploymentGetUnstructured, err = dc.Resource(deploymentResource).Namespace(testNamespaceName).Get(context.TODO(), testDeploymentName, metav1.GetOptions{}, "status")
@@ -432,8 +443,8 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see replicas of %v in namespace %v scale to requested amount of %v", testDeployment.Name, testNamespaceName, testDeploymentDefaultReplicas)
 
-		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
-		framework.Logf("List Deployment Details\n %v\n", r)
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 
 		ginkgo.By("deleting the Deployment")
 		err = f.ClientSet.AppsV1().Deployments(testNamespaceName).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: testDeploymentLabelsFlat})
@@ -460,28 +471,21 @@ var _ = SIGDescribe("Deployment", func() {
 		})
 		framework.ExpectNoError(err, "failed to see %v event", watch.Deleted)
 
-		r, _ = framework.RunKubectl(ns, "get", "deployments", "-A")
-		framework.Logf("Details\n %v\n", r)
-		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
-		framework.Logf("List all Pods\n %v\n", r)
-
-		framework.Logf("Waiting 3 seconds before checking pod status...")
-		time.Sleep( 3 * time.Second)
-		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
-		framework.Logf("List all Pods\n %v\n", r)
-
-		framework.Logf("Waiting another 3 seconds before checking pod status...")
-		time.Sleep( 3 * time.Second)
-		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
-		framework.Logf("List all Pods\n %v\n", r)
-
-		framework.Logf("Waiting another 3 seconds before checking pod status...")
-		time.Sleep( 3 * time.Second)
-		r, _ = framework.RunKubectl(ns, "get", "pods", "-A")
-		framework.Logf("List all Pods\n %v\n", r)
-
+		logCurrentTestTime(testStart)
+		timeReference = logStageTime(timeReference)
 	})
 })
+
+func logCurrentTestTime(start time.Time) {
+	elapsed := time.Now().Sub(start)
+	framework.Logf("Current test duration: %v", elapsed)
+}
+
+func logStageTime(ref time.Time) (time.Time) {
+	diff := time.Now().Sub(ref)
+	framework.Logf("Stage duration: %v", diff)
+	return time.Now()
+}
 
 func failureTrap(c clientset.Interface, ns string) {
 	deployments, err := c.AppsV1().Deployments(ns).List(context.TODO(), metav1.ListOptions{LabelSelector: labels.Everything().String()})
