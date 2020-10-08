@@ -1175,12 +1175,6 @@ rules:
       - /version
       - /swagger*
 
-  # Don't log events requests.
-  - level: None
-    resources:
-      - group: "" # core
-        resources: ["events"]
-
   # node and pod status calls from nodes are high-volume and can be large, don't log responses for expected updates from nodes
   - level: Request
     users: ["kubelet", "system:node-problem-detector", "system:serviceaccount:kube-system:node-problem-detector"]
