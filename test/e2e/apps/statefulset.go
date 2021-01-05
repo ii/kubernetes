@@ -18,15 +18,12 @@ package apps
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"strings"
-	"sync"
-	"time"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
-
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -45,6 +42,9 @@ import (
 	e2eservice "k8s.io/kubernetes/test/e2e/framework/service"
 	e2estatefulset "k8s.io/kubernetes/test/e2e/framework/statefulset"
 	imageutils "k8s.io/kubernetes/test/utils/image"
+	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -847,11 +847,13 @@ var _ = SIGDescribe("StatefulSet", func() {
 
 			ginkgo.By("getting scale subresource")
 			scale, err := c.AppsV1().StatefulSets(ns).GetScale(context.TODO(), ssName, metav1.GetOptions{})
+			framework.Logf("scale: %#v", scale)
+			framework.Logf("err: %+v", err)
 			if err != nil {
 				framework.Failf("Failed to get scale subresource: %v", err)
 			}
-			framework.ExpectEqual(scale.Spec.Replicas, int32(1))
-			framework.ExpectEqual(scale.Status.Replicas, int32(1))
+			framework.ExpectEqual(scale.Spec.Replicas, int32(1), "")
+			framework.ExpectEqual(scale.Status.Replicas, int32(1), "")
 
 			ginkgo.By("updating a scale subresource")
 			scale.ResourceVersion = "" // indicate the scale update should be unconditional
@@ -860,14 +862,38 @@ var _ = SIGDescribe("StatefulSet", func() {
 			if err != nil {
 				framework.Failf("Failed to put scale subresource: %v", err)
 			}
-			framework.ExpectEqual(scaleResult.Spec.Replicas, int32(2))
+			framework.ExpectEqual(scaleResult.Spec.Replicas, int32(2), "")
 
 			ginkgo.By("verifying the statefulset Spec.Replicas was modified")
 			ss, err = c.AppsV1().StatefulSets(ns).Get(context.TODO(), ssName, metav1.GetOptions{})
 			if err != nil {
 				framework.Failf("Failed to get statefulset resource: %v", err)
 			}
-			framework.ExpectEqual(*(ss.Spec.Replicas), int32(2))
+			framework.ExpectEqual(*(ss.Spec.Replicas), int32(2), "")
+
+			ginkgo.By("Patch a scale subresource")
+			scale.ResourceVersion = "" // indicate the scale update should be unconditional
+			scale.Spec.Replicas = 4    //should be 2 after "UpdateScale" operation, now Patch to 4
+			ssScalePatchPayload, err := json.Marshal(autoscalingv1.Scale{
+				Spec: autoscalingv1.ScaleSpec{
+					Replicas: scale.Spec.Replicas,
+				},
+			})
+			framework.ExpectNoError(err, "Could not Marshal JSON for patch payload")
+			PatchscaleResult, err := c.AppsV1().StatefulSets(ns).Patch(context.TODO(), ssName, types.StrategicMergePatchType, []byte(ssScalePatchPayload), metav1.PatchOptions{}, "scale")
+			framework.Logf("scaleResult: %#v", PatchscaleResult)
+			framework.Logf("err: %#v", err)
+			x := PatchscaleResult.Status.ReadyReplicas
+			framework.Logf("ReadyReplicas: %#v", x)
+			if err != nil {
+				framework.Failf("Failed to put scale subresource: %v", err)
+			}
+			ginkgo.By("verifying the statefulset Spec.Replicas was modified")
+			ss, err = c.AppsV1().StatefulSets(ns).Get(context.TODO(), ssName, metav1.GetOptions{})
+			if err != nil {
+				framework.Failf("Failed to get statefulset resource: %v", err)
+			}
+			framework.ExpectEqual(*(ss.Spec.Replicas), int32(4), "statefulset should have 4 replicas")
 		})
 	})
 
