@@ -1,0 +1,138 @@
+image: docker:17.05.0
+stages:
+  - build
+  - package
+  - release
+
+variables:
+  DASHBOARD_STABLE_REF_NAME: "ci-v1.7.2"
+  DASHBOARD_MASTER_REF_NAME: "ci-master"
+  DASHBOARD_HEAD_REF_NAME: "$DASHBOARD_MASTER_REF_NAME"
+
+before_script:
+  - apk update
+  - apk add bash tar rsync git curl make file util-linux
+  - echo "We are only going to build for amd64 for this demo"
+  - sed -i -e '/ linux\/arm/ s/^/#/' hack/lib/golang.sh 
+  - sed -i -e '/ linux\/s390/ s/^/#/' hack/lib/golang.sh 
+  - sed -i -e '/ linux\/386/ s/^/#/' hack/lib/golang.sh 
+  - sed -i -e '/ linux\/ppc64le/ s/^/#/' hack/lib/golang.sh 
+  - sed -i -e '/ darwin\/amd64/ s/^/#/' hack/lib/golang.sh 
+  - sed -i -e '/ darwin\/386/ s/^/#/' hack/lib/golang.sh 
+  - sed -i -e '/ windows\/386/ s/^/#/' hack/lib/golang.sh 
+  - sed -i -e '/ windows\/amd64/ s/^/#/' hack/lib/golang.sh 
+  - export CI_COMMIT_SHA_SHORT=$(echo ${CI_COMMIT_SHA} | cut -c -8)
+  - rm -f update_dashboard
+  - wget -O update_dashboard http://gitlab.dev.cncf.ci/cncf/cross-cloud/raw/ci-stable-v0.1.0/update_dashboard || apk update && apk add bash curl && curl -o update_dashboard http://gitlab.dev.cncf.ci/cncf/cross-cloud/raw/ci-stable-v0.1.0/update_dashboard
+  - chmod +x update_dashboard
+  - bash ./update_dashboard
+
+after_script:
+  - rm -f update_dashboard
+  - wget -nv http://gitlab.dev.cncf.ci/cncf/cross-cloud/raw/ci-stable-v0.1.0/update_dashboard || apk update && apk add bash curl && curl -o update_dashboard http://gitlab.dev.cncf.ci/cncf/cross-cloud/raw/ci-stable-v0.1.0/update_dashboard
+  - chmod +x update_dashboard
+  - bash ./update_dashboard
+
+compile:
+  stage: build
+  variables:
+    KUBE_DOCKER_REGISTRY: "${CI_REGISTRY_IMAGE}"
+    KUBE_DOCKER_IMAGE_TAG: "${CI_COMMIT_REF_SLUG}.${CI_PIPELINE_ID}.${CI_JOB_ID}"
+    KUBE_RELEASE_RUN_TESTS: "n"
+    KUBE_FASTBUILD: "false"
+    KUBE_VERBOSE: "0"
+    FEDERATION: "false"
+  script:
+    - apk update
+    - apk add bash tar rsync git curl make file
+    - export KUBE_DOCKER_REGISTRY="${CI_REGISTRY_IMAGE}"
+    - export KUBE_DOCKER_IMAGE_TAG="${CI_COMMIT_REF_SLUG}.${CI_COMMIT_SHA_SHORT}"
+    - echo "${KUBE_DOCKER_IMAGE_TAG}"
+    - ./build/release.sh
+    - ARCH=amd64
+        REGISTRY=${KUBE_DOCKER_REGISTRY}
+        VERSION=${KUBE_DOCKER_IMAGE_TAG}
+        make -C cluster/images/hyperkube/ build
+    - cp -a _output/dockerized/bin/linux/amd64 linux-amd64
+    - echo export KUBELET_ARTIFACT=https://gitlab.cncf.ci/kubernetes/kubernetes/-/jobs/${CI_JOB_ID}/artifacts/raw/linux-amd64/kubelet >> release.env
+  artifacts:
+    name: "${CI_JOB_NAME}.${CI_PIPELINE_ID}.${CI_JOB_ID}"
+    when: always
+    expire_in: 1 weeks
+    paths:
+      - release.env
+      - linux-amd64
+
+container:
+  stage: package
+  variables:
+    KUBE_DOCKER_REGISTRY: "${CI_REGISTRY_IMAGE}"
+    KUBE_DOCKER_IMAGE_TAG: "${CI_COMMIT_REF_SLUG}.${CI_PIPELINE_ID}.${CI_COMMIT_SHA_SHORT}"
+  script:
+    - export KUBE_DOCKER_REGISTRY="${CI_REGISTRY_IMAGE}"
+    - export KUBE_DOCKER_IMAGE_TAG="${CI_COMMIT_REF_SLUG}.${CI_COMMIT_SHA_SHORT}"
+    - echo "${KUBE_DOCKER_IMAGE_TAG}"
+    - docker images | grep kubernetes/kubernetes
+    - docker login -u "gitlab-ci-token" -p "$CI_JOB_TOKEN" $CI_REGISTRY
+    - docker push "$CI_REGISTRY_IMAGE/hyperkube-amd64:$KUBE_DOCKER_IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/kube-apiserver-amd64:$KUBE_DOCKER_IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/kube-controller-manager-amd64:$KUBE_DOCKER_IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/kube-scheduler-amd64:$KUBE_DOCKER_IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/kube-proxy-amd64:$KUBE_DOCKER_IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/kube-aggregator-amd64:$KUBE_DOCKER_IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/cloud-controller-manager-amd64:$KUBE_DOCKER_IMAGE_TAG"
+    - echo export KUBERNETES_IMAGE="$CI_REGISTRY_IMAGE/hyperkube-amd64" > release.env
+    - echo export KUBERNETES_TAG="$KUBE_DOCKER_IMAGE_TAG" >> release.env
+    - echo export KUBE_APISERVER_IMAGE="$CI_REGISTRY_IMAGE/kube-apiserver-amd64" >> release.env
+    - echo export KUBE_APISERVER_TAG="$KUBE_DOCKER_IMAGE_TAG" >> release.env
+    - echo export KUBE_CONTROLLER_MANAGER_IMAGE="$CI_REGISTRY_IMAGE/kube-controller-manager-amd64" >> release.env
+    - echo export KUBE_CONTROLLER_MANAGER_TAG="$KUBE_DOCKER_IMAGE_TAG" >> release.env
+    - echo export KUBE_SCHEDULER_IMAGE="$CI_REGISTRY_IMAGE/kube-scheduler-amd64" >> release.env
+    - echo export KUBE_SCHEDULER_TAG="$KUBE_DOCKER_IMAGE_TAG" >> release.env
+    - echo export KUBE_PROXY_IMAGE="$CI_REGISTRY_IMAGE/kube-proxy-amd64" >> release.env
+    - echo export KUBE_PROXY_TAG="$KUBE_DOCKER_IMAGE_TAG" >> release.env
+    - echo export KUBE_AGGREGATOR_IMAGE="$CI_REGISTRY_IMAGE/kube-aggregator-amd64" >> release.env
+    - echo export KUBE_AGGREGATOR_TAG="$KUBE_DOCKER_IMAGE_TAG" >> release.env
+    - echo export CLOUD_CONTROLLER_IMAGE="$CI_REGISTRY_IMAGE/cloud-controller-manager-amd64" >> release.env
+    - echo export CLOUD_CONTROLLER_TAG="$KUBE_DOCKER_IMAGE_TAG" >> release.env
+    - cat release.env
+  artifacts:
+    name: "${CI_JOB_NAME}.${CI_PIPELINE_ID}.${CI_JOB_ID}"
+    when: always
+    expire_in: 1 weeks
+    paths:
+      - release.env
+
+build-e2e:
+  stage: build
+  variables:
+    KUBE_DOCKER_REGISTRY: "${CI_REGISTRY_IMAGE}"
+    KUBE_DOCKER_IMAGE_TAG: "${CI_COMMIT_REF_SLUG}.${CI_PIPELINE_ID}.${CI_JOB_ID}"
+  script:
+    - docker login -u "gitlab-ci-token" -p "$CI_JOB_TOKEN" $CI_REGISTRY
+    - docker build -t "$CI_REGISTRY_IMAGE/kubernetes-e2e:$KUBE_DOCKER_IMAGE_TAG" ./e2e/
+    - docker push "$CI_REGISTRY_IMAGE/kubernetes-e2e:$KUBE_DOCKER_IMAGE_TAG"
+    - echo export KUBERNETES_E2E_IMAGE="$CI_REGISTRY_IMAGE/kubernetes-e2e" > e2e.env
+    - echo export KUBERNETES_E2E_TAG="$KUBE_DOCKER_IMAGE_TAG" >> e2e.env
+  artifacts:
+    name: "${CI_JOB_NAME}.${CI_PIPELINE_ID}.${CI_JOB_ID}"
+    expire_in: 1 weeks
+    paths:
+      - e2e.env
+
+release:
+  stage: release
+  script:
+    - cat e2e.env
+    - cat release.env
+    - curl -X POST
+        -F token=$CI_JOB_TOKEN
+        -F ref=ci-master-v0.1.0
+        https://gitlab.cncf.ci/api/v4/projects/2/trigger/pipeline
+  artifacts:
+    name: "${CI_JOB_NAME}.${CI_PIPELINE_ID}.${CI_JOB_ID}"
+    expire_in: 1 weeks
+    paths:
+      - ci.vars
+      - release.env
+      - e2e.env
